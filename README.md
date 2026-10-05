@@ -99,7 +99,6 @@ The objective is to demonstrate an end-to-end analytics and machine learning wor
 - PostgreSQL
 - DBeaver
 - HTML / JavaScript dashboards hosted on GitHub Pages
-- Tableau Public
 - GitHub
 - Visual Studio Code
 
@@ -128,7 +127,7 @@ Customer-churn-early-warning/
 │   ├── 05_early_warning_signals.ipynb
 │   ├── 06_churn_modeling.ipynb
 │   ├── 07_risk_scoring_retention.ipynb
-│   └── 08_tableau_data_prep.ipynb
+│   └── 08_dashboard_data_prep.ipynb
 │
 ├── sql/
 │   └── part1_subscription_churn.sql
@@ -145,8 +144,8 @@ Customer-churn-early-warning/
     ├── customer_data.csv
     ├── phase6_modeling_data.csv
     ├── phase7_risk_scores.csv
-    ├── phase8_tableau_customers.csv
-    ├── phase8_tableau_monthly.csv
+    ├── phase8_dashboard_customers.csv
+    ├── phase8_dashboard_monthly.csv
     └── customer_churn_2026.csv
 ```
 

@@ -1,6 +1,6 @@
-"""Build dashboards/index.html from the Phase 8 Tableau extracts.
+"""Build dashboards/index.html from the Phase 8 dashboard extracts.
 
-Reads phase8_tableau_customers.csv and phase8_tableau_monthly.csv, aggregates
+Reads phase8_dashboard_customers.csv and phase8_dashboard_monthly.csv, aggregates
 everything the three dashboards need, trains the 3-driver random forest used
 by the Live Scoring tab, and injects the results into template.html.
 
@@ -20,8 +20,8 @@ from sklearn.model_selection import StratifiedKFold, cross_val_predict
 HERE = Path(__file__).resolve().parent
 DATA_DIR = Path(sys.argv[1]).expanduser() if len(sys.argv) > 1 else HERE.parent / "data"
 
-c = pd.read_csv(DATA_DIR / "phase8_tableau_customers.csv")
-m = pd.read_csv(DATA_DIR / "phase8_tableau_monthly.csv")
+c = pd.read_csv(DATA_DIR / "phase8_dashboard_customers.csv")
+m = pd.read_csv(DATA_DIR / "phase8_dashboard_monthly.csv")
 
 
 def churn_by(df, col, order=None):
