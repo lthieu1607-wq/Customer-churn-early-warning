@@ -1,62 +1,202 @@
-# Customer Churn Early Warning
+# Customer Churn Early Warning | Python + Machine Learning + SQL
 
-Predicting which fintech customers are about to leave, from changes in how they transact, and deciding who the retention team should contact first.
+## 📊 Live Interactive Dashboard
 
-**[Open the live dashboards →](https://lthieu1607-wq.github.io/Customer-churn-early-warning/)**
+Explore the interactive dashboards and the live model scoring demo here:
 
-## Dashboards
+🔗 **[View the Live Dashboards](https://lthieu1607-wq.github.io/Customer-churn-early-warning/)**
 
-| Dashboard | What it answers |
-|---|---|
-| Executive Retention Overview | How big is churn, how much customer value is lost, and which segments matter most? |
-| Early Warning Monitor | Which behaviors signal churn, and how well does the model separate churners? |
-| Retention Action Center | Which customers to contact, why each was flagged, and what to do |
-| Live Scoring | How the model scores a new customer once deployed, including the API response |
+🤖 **[Try the Live ML Scoring](https://lthieu1607-wq.github.io/Customer-churn-early-warning/#live)**
 
-## Key results
+## Project Overview
 
-- 48,723 customers, 21.1% churn. Customer value lost to churn: $366M (9.9% of total lifetime value).
-- Demographics barely matter: churn sits between 18% and 25% for every segment, income bracket, age group and city.
-- Three behaviors drive the model: shift in withdrawal share, change in average transaction amount, and days since the last transaction. Both amount and withdrawal changes are U-shaped: big moves in either direction raise churn.
-- Random forest out-of-fold AUC: 0.745 with 62 features, 0.772 with only the 3 behavioral drivers.
-- The High-risk tier (18% of customers) churns at 48%, and the two High-risk segments contain 36% of the value actually lost.
+This project builds a customer churn early-warning system for a Colombian fintech company. It uses 12 months of customer and transaction data to answer business questions about who is likely to leave, what behavior signals it ahead of time, how much customer value is at risk, and which customers the retention team should contact first.
 
-## Repository
+The objective is to demonstrate an end-to-end analytics and machine learning workflow: defining churn from raw transactions, engineering early-warning features, training and validating models, turning predictions into risk scores, and delivering the results as dashboards and a retention playbook that support business decisions.
+
+## Key Results
+
+- Analyzed 48,723 customers and 3.16 million transactions from 2023
+- Measured a 21.1% churn rate and $366M of customer lifetime value lost to churn (9.9% of total)
+- Found that demographics barely matter: churn stays between 18% and 25% for every segment, income bracket, age group and city
+- Identified 3 behavioral warning signals that raise churn from 10% to as high as 50%
+- Built a random forest that outperforms the logistic regression baseline (AUC 0.761 vs 0.574)
+- Scored every customer into High, Medium and Low risk tiers: the High tier is 18% of customers and churns at 48%
+- Prioritized customers by risk × value: the two High-risk segments hold 36% of all value lost
+- Built four interactive dashboards, including a live scoring demo of the deployed model
+
+## Business Questions
+
+### Executive Summary
+- How many customers churned, and what is the churn rate?
+- How much customer value was lost to churn?
+- How much value is still at risk?
+- Does churn differ by customer segment, income, age or city?
+
+### Early Warning Signals
+- Which customer behaviors change before a customer leaves?
+- Does a drop in transaction amounts signal churn? Does a surge?
+- Does a shift in how much a customer withdraws signal churn?
+- Do inactivity, failed payments, support tickets or satisfaction scores predict churn?
+
+### Machine Learning
+- Can churn be predicted from Jan–Sep behavior before it happens in Oct–Dec?
+- Does a random forest outperform logistic regression?
+- Which decision threshold best balances catching churners against false alarms?
+- Which features does the model actually rely on?
+
+### Risk Scoring & Prioritization
+- What is each customer's churn probability?
+- How do customers split into High, Medium and Low risk tiers?
+- Which customers combine high risk with high value?
+- How much expected value is at risk in each segment?
+
+### Retention Strategy
+- What action should each priority segment receive?
+- Which customers should the retention team contact first, and why was each one flagged?
+
+### Part 1: SQL Exploration (subscription dataset)
+- How does churn vary by contract type, plan tier, tenure, payment method and auto-pay?
+- How much recurring revenue was lost to churn?
+- Do high-risk characteristics overlap in the same customers?
+
+---
+
+## Machine Learning & Python Skills Demonstrated
+
+- ✅ Data cleaning and merging with pandas
+- ✅ Defining a churn label from raw transaction activity
+- ✅ Time-window feature engineering (Jan–Sep behavior vs Oct–Dec outcome)
+- ✅ Data leakage checks
+- ✅ Statistical testing (chi-square, Spearman correlation)
+- ✅ Logistic Regression and Random Forest (scikit-learn)
+- ✅ Train/test split and stratified 5-fold cross-validation
+- ✅ Out-of-fold predictions for unbiased risk scores
+- ✅ ROC AUC, ROC curves, confusion matrices, precision and recall
+- ✅ Decision threshold tuning
+- ✅ Feature importance analysis
+- ✅ Risk tiering and value-at-risk prioritization
+
+## SQL Skills Demonstrated
+
+- ✅ SELECT
+- ✅ WHERE
+- ✅ GROUP BY
+- ✅ ORDER BY
+- ✅ Aggregate Functions (COUNT, SUM, AVG)
+- ✅ CASE Statements (conditional aggregation and bucketing)
+- ✅ Churn and retention rate calculations
+- ✅ Formatting with ROUND and TO_CHAR
+- ✅ NULLIF for safe division
+- ✅ Business-Oriented SQL Analysis
+
+---
+
+## Tools & Technologies
+
+- Python (pandas, NumPy, scikit-learn, SciPy, Matplotlib)
+- Jupyter Notebook
+- PostgreSQL
+- DBeaver
+- HTML / JavaScript dashboards hosted on GitHub Pages
+- Tableau Public
+- GitHub
+- Visual Studio Code
+
+---
+
+## Dataset
+
+Dataset Source:
+
+**[COFINFAD: Colombian Fintech Financial Analytics Dataset](https://data.mendeley.com/datasets/mhb4zn3258/1)** by Luis Eduardo Muñoz Guerrero, Yony Fernando Ceballos and Luis David Trejos Rojas (Mendeley Data, 2025, DOI: [10.17632/mhb4zn3258.1](https://doi.org/10.17632/mhb4zn3258.1)), licensed under CC BY 4.0.
+
+- `customer_data.csv`: 48,723 customers with demographics, products and engagement metrics
+- `transactions_data.csv`: 3,159,157 transactions from January to December 2023 (not included in this repo because it exceeds GitHub's 100 MB limit; download it from the source above and place it in `data/`)
+
+Part 1 uses a separate subscription churn dataset (`customer_churn_2026.csv`, 5,000 customers).
+
+## Project Structure
 
 ```
-notebooks/  04_eda_subscription.ipynb        Part 1: EDA and statistics on the subscription dataset
-            05_early_warning_signals.ipynb   builds the churn label and Jan–Sep behavioral features
-            06_churn_modeling.ipynb          logistic regression vs random forest, thresholds, ROC
-            07_risk_scoring_retention.ipynb  out-of-fold risk scores, value at risk, priority segments
-            08_tableau_data_prep.ipynb       warning signals and monthly activity for the dashboards
-sql/        part1_subscription_churn.sql     PostgreSQL churn analysis (Part 1, subscription dataset)
-reports/    intervention_strategy.md         retention playbook for each priority segment
-docs/       index.html                       interactive dashboards (served by GitHub Pages)
-            build_dashboard.py               aggregates the data, trains the 3-driver scoring model, writes index.html
-            template.html                    dashboard layout and charts
-data/       customer_data.csv                fintech customer profiles (raw)
-            phase6_modeling_data.csv         modeling table: one row per customer, features + churn label
-            phase7_risk_scores.csv           risk score, tier, value at risk, priority and action per customer
-            phase8_tableau_customers.csv     dashboard extract, one row per customer
-            phase8_tableau_monthly.csv       dashboard extract, monthly activity by outcome and risk tier
-            customer_churn_2026.csv          subscription dataset used by the SQL and notebook 04
+Customer-churn-early-warning/
+│
+├── README.md
+│
+├── notebooks/
+│   ├── 04_eda_subscription.ipynb
+│   ├── 05_early_warning_signals.ipynb
+│   ├── 06_churn_modeling.ipynb
+│   ├── 07_risk_scoring_retention.ipynb
+│   └── 08_tableau_data_prep.ipynb
+│
+├── sql/
+│   └── part1_subscription_churn.sql
+│
+├── reports/
+│   └── intervention_strategy.md
+│
+├── docs/
+│   ├── index.html
+│   ├── template.html
+│   └── build_dashboard.py
+│
+└── data/
+    ├── customer_data.csv
+    ├── phase6_modeling_data.csv
+    ├── phase7_risk_scores.csv
+    ├── phase8_tableau_customers.csv
+    ├── phase8_tableau_monthly.csv
+    └── customer_churn_2026.csv
 ```
 
-The project has two parts. **Part 1** (SQL and notebook 04) is an early exploration on a 5,000-customer subscription dataset. **Part 2** (notebooks 05–08 and the dashboards) is the main early-warning project on the fintech data.
+## Dashboard Highlights
 
-`transactions_data.csv` (119 MB) is not included because it exceeds GitHub's file size limit. Place it in `data/` to run notebooks 05 and 08. Each later notebook loads the CSV saved by the one before it, so notebooks 06 and 07 run without it.
+### Executive Retention Overview
+- Total Customers, Churn Rate and Retention Rate
+- Total Customer Value, Value Lost to Churn and Expected Value at Risk
+- Churn by Warning Signal vs Customer Segment
+- Monthly Active Share: Churned vs Retained
+- Highest-Risk Priority Segments
 
-Run the notebooks from inside the `notebooks/` folder. Rebuild the dashboards after changing the data:
+### Early Warning Monitor
+- Risk Tiers with Actual Churn Rates
+- Churn Probability Distribution
+- Feature Importance of the Top Drivers
+- Churn by Transaction Amount Change, Withdrawal Shift and Inactivity
+- Model Scorecard and Confusion Matrix
 
-```bash
-pip install pandas numpy scikit-learn matplotlib
-python docs/build_dashboard.py data
-```
+### Retention Action Center
+- Customers per Recommended Action
+- Searchable Customer Table: ID, Churn Probability, Risk Category, Value, Warning Signal, Action
+- "Why This Customer" Panel Explaining Each Flag
+
+### Live ML Scoring
+- Score a Customer with Interactive Inputs
+- Churn Probability Gauge, Risk Tier and Recommended Action
+- What-If Chart Showing What Moves the Score
+- Sample API Response from a Deployed Model
+
+## Skills Demonstrated
+
+- Machine Learning
+- Predictive Analytics
+- Feature Engineering
+- Statistical Analysis
+- SQL Analytics
+- Customer Segmentation
+- Churn and Retention Analysis
+- Data Visualization
+- Dashboard Design
+- Business Recommendations
 
 ## Notes
 
 - Money is converted from Colombian pesos at the 2023 average rate of 4,325 COP per USD.
 - The dataset has no revenue field, so customer lifetime value is used as the measure of value at risk.
-- Churn is defined as no activity in Oct–Dec 2023; all model inputs use Jan–Sep behavior only.
+- Churn is defined as no activity in Oct–Dec 2023, and all model inputs use Jan–Sep behavior only.
+- To rebuild the dashboards after changing the data, run `python docs/build_dashboard.py data`.
 
-*Coming next: Tableau Public dashboards and a reproducible pipeline.*
+## Conclusion
+
+This project demonstrates an end-to-end analytics and machine learning workflow, from exploring churn with SQL and engineering early-warning signals in Python to training, validating and scoring a churn model, and delivering the results as interactive dashboards and a retention playbook that support data-driven decisions.
