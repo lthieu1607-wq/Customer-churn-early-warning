@@ -13,12 +13,13 @@ Customers are grouped into four segments by combining **churn risk** with **cust
 
 | Segment | Customers | Share | Actual churn rate | Median lifetime value | Share of value lost to churn* |
 |---|---|---|---|---|---|
-| **1. High Risk + High Value** | 3,657 | 7.5% | 42.6% | 233M COP | 26.6% |
-| **2. High Risk + Low Value** | 5,229 | 10.7% | 51.7% | 56M COP | 9.6% |
-| **3. Medium Risk** | 13,782 | 28.3% | 24.1% | 102M COP | 30.7% |
-| **4. Low Risk** | 26,055 | 53.5% | 10.3% | 165M COP | 33.0% |
+| **1. High Risk + High Value** | 3,657 | 7.5% | 42.6% | $53.9K | 26.6% |
+| **2. High Risk + Low Value** | 5,229 | 10.7% | 51.7% | $12.8K | 9.6% |
+| **3. Medium Risk** | 13,782 | 28.3% | 24.1% | $23.6K | 30.7% |
+| **4. Low Risk** | 26,055 | 53.5% | 10.3% | $38.2K | 33.0% |
 
 \*Share of total lifetime value belonging to customers who actually churned in the outcome window.
+Values are converted from Colombian pesos at the 2023 average rate of 4,325 COP per USD.
 
 **What drives churn:** permutation importance identifies three real behavioral drivers:
 
@@ -57,7 +58,7 @@ Customers are grouped into four segments by combining **churn risk** with **cust
 
 ### Segment 2 — High Risk + Low Value → Automated retention campaign
 
-**Who:** 5,229 customers (10.7%). This segment has the **highest churn rate (52%)** but the lowest value per customer (median 56M COP).
+**Who:** 5,229 customers (10.7%). This segment has the **highest churn rate (52%)** but the lowest value per customer (median $12.8K).
 
 **Action**
 - Enroll customers automatically in a retention journey of email, push and in-app messages over about 4 weeks.
