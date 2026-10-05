@@ -1,0 +1,753 @@
+<title>Customer Retention Early Warning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a bank-ops console. Sticky tab bar, then summary tiles -> comparison panels -> detail, on a 12-col grid that stacks at phone width. */
+:root{
+  --bg:#f3f5f3; --surface:#ffffff; --ink:#0f1d1a; --ink-2:#47544f; --muted:#7a8580; --line:#dde2df; --track:#eef1ef;
+  --accent:#0d6b58; --accent-wash:#e3f1ec;
+  --s-retained:#2a78d6; --s-churned:#eb6834; --bar:#2a78d6; --bar-hi:#184f95;
+  --good:#0ca30c; --warn:#fab219; --crit:#d03b3b; --good-ink:#006300; --crit-ink:#b42d2d;
+  --shade:rgba(15,29,26,.05);
+  --f-display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1312; --surface:#161c1a; --ink:#edf2ef; --ink-2:#b4beba; --muted:#86918c; --line:#2a3330; --track:#212a27;
+  --accent:#4fc1a6; --accent-wash:#16302a;
+  --s-retained:#3987e5; --s-churned:#d95926; --bar:#3987e5; --bar-hi:#86b6ef;
+  --good-ink:#0ca30c; --crit-ink:#e66767; --shade:rgba(255,255,255,.05); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1312; --surface:#161c1a; --ink:#edf2ef; --ink-2:#b4beba; --muted:#86918c; --line:#2a3330; --track:#212a27;
+  --accent:#4fc1a6; --accent-wash:#16302a;
+  --s-retained:#3987e5; --s-churned:#d95926; --bar:#3987e5; --bar-hi:#86b6ef;
+  --good-ink:#0ca30c; --crit-ink:#e66767; --shade:rgba(255,255,255,.05); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:20px;padding-block:20px 48px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;padding-bottom:14px}
+.eyebrow{font-family:var(--f-display);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:600}
+h1{font-family:var(--f-display);font-weight:700;font-size:28px;line-height:1.1;margin:4px 0 0;text-wrap:balance}
+.sub{color:var(--ink-2);margin:4px 0 0;max-width:68ch}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+nav.tabs button{font:600 14px var(--f-display);letter-spacing:.02em;background:none;border:0;color:var(--ink-2);padding:12px 14px 10px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+nav.tabs button .n{font-family:var(--f-mono);font-weight:400;color:var(--muted);margin-right:6px}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+nav.tabs button:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.c12{grid-column:span 12}.c8{grid-column:span 8}.c7{grid-column:span 7}.c6{grid-column:span 6}.c5{grid-column:span 5}.c4{grid-column:span 4}.c3{grid-column:span 3}
+.k4{grid-column:span 4}
+@media (max-width:900px){.c8,.c7,.c6,.c5,.c4{grid-column:span 12}.c3,.k4{grid-column:span 6}}
+@media (max-width:520px){.k4{grid-column:span 12}}
+@media (max-width:520px){.c3{grid-column:span 12}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px 18px;min-width:0}
+.panel h2{font-family:var(--f-display);font-size:16px;font-weight:600;margin:0;text-wrap:balance}
+.panel .q{color:var(--ink-2);font-size:13px;margin:2px 0 12px}
+.note{color:var(--ink-2);font-size:12.5px;margin:12px 0 0;border-top:1px dashed var(--line);padding-top:10px}
+.note b{color:var(--ink)}
+.kpi{display:flex;flex-direction:column;gap:2px}
+.kpi .lab{font-family:var(--f-display);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.kpi .val{font-family:var(--f-display);font-size:32px;font-weight:700;line-height:1.1}
+.kpi .val small{font-size:15px;font-weight:500;color:var(--ink-2);margin-left:3px}
+.kpi .ctx{font-size:12.5px;color:var(--muted)}
+.section-h{grid-column:span 12;display:flex;align-items:baseline;gap:12px;margin-top:10px}
+.section-h h3{font-family:var(--f-display);font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin:0;color:var(--ink-2)}
+.section-h::after{content:"";flex:1;border-top:1px solid var(--line)}
+/* horizontal bars */
+.hb{display:grid;grid-template-columns:minmax(88px,max-content) 1fr 52px;gap:7px 10px;align-items:center}
+.hb .l{font-size:13px;color:var(--ink);overflow-wrap:anywhere}
+.hb .l span{display:block;font-size:11.5px;color:var(--muted)}
+.hb .t{position:relative;height:18px;background:var(--track);border-radius:0 4px 4px 0}
+.hb .b{height:100%;background:var(--bar);border-radius:0 4px 4px 0;min-width:2px}
+.hb .ref{position:absolute;top:-4px;bottom:-4px;border-left:1.5px dashed var(--ink-2);pointer-events:none}
+.hb .v{font-variant-numeric:tabular-nums;text-align:right;font-weight:600;font-size:13px}
+.hb .row{display:contents}
+.hb .row:hover .b{background:var(--bar-hi)}
+.axis-note{font-size:11.5px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:6px}
+.axis-note i{display:inline-block;width:14px;border-top:1.5px dashed var(--ink-2)}
+/* columns */
+.vc{display:flex;align-items:flex-end;gap:6px;height:170px;position:relative;padding-top:18px}
+.vc .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0;cursor:default}
+.vc .col .bar{width:100%;max-width:56px;background:var(--bar);border-radius:4px 4px 0 0;position:relative}
+.vc .col:hover .bar{background:var(--bar-hi)}
+.vc .col .pv{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;margin-bottom:3px}
+.vc-l{display:flex;gap:6px;margin-top:6px;border-top:1px solid var(--muted);padding-top:5px}
+.vc-l div{flex:1;text-align:center;font-size:11.5px;color:var(--ink-2);min-width:0;overflow-wrap:anywhere}
+.vc .ref{position:absolute;left:0;right:0;border-top:1.5px dashed var(--ink-2);pointer-events:none}
+.mini{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+@media (max-width:700px){.mini{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.mini h4{font-family:var(--f-display);font-size:13px;font-weight:600;margin:0 0 4px}
+.mini .vc{height:110px}
+/* svg charts */
+svg.chart{width:100%;height:auto;display:block;overflow:visible}
+svg text{fill:var(--muted);font-family:var(--f-body);font-size:11px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--ink-2);margin-bottom:6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.legend i.line{height:2px;border-radius:1px;width:16px}
+/* status pills */
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;white-space:nowrap}
+.pill::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--c)}
+.pill.r0{--c:var(--crit)}.pill.r1{--c:var(--warn)}.pill.r2{--c:var(--good)}
+.pill.r0::before{transform:rotate(45deg)}.pill.r2::before{border-radius:50%}
+.tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:620px){.tiers{grid-template-columns:1fr}}
+.tier{border:1px solid var(--line);border-radius:6px;padding:12px 14px;border-top:4px solid var(--c)}
+.tier.r0{--c:var(--crit)}.tier.r1{--c:var(--warn)}.tier.r2{--c:var(--good)}
+.tier .big{font-family:var(--f-display);font-size:26px;font-weight:700}
+.tier .row2{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-2);margin-top:4px;gap:8px}
+.tier .row2 b{color:var(--ink);font-variant-numeric:tabular-nums}
+/* tables */
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font-family:var(--f-display);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.id{font-family:var(--f-mono);font-size:12.5px}
+tbody tr:hover{background:var(--shade)}
+#t-act tbody tr{cursor:pointer}
+#t-act tbody tr[aria-selected="true"]{background:var(--accent-wash);box-shadow:inset 3px 0 0 var(--accent)}
+/* model status strip */
+.status{display:flex;flex-wrap:wrap;align-items:center;gap:6px 22px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 16px;font-size:13px;color:var(--ink-2);margin-bottom:16px}
+.status b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.status .live{display:inline-flex;align-items:center;gap:7px;color:var(--good-ink);font-weight:600}
+.status .live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
+/* why-this-customer */
+.why{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:18px 28px;margin-bottom:16px}
+@media (max-width:820px){.why{grid-template-columns:1fr}}
+.why .who .id{font-family:var(--f-mono);font-size:20px;font-weight:500}
+.why .who dl{display:grid;grid-template-columns:max-content 1fr;gap:5px 12px;margin:10px 0 0;font-size:13px}
+.why .who dt{color:var(--ink-2)}.why .who dd{margin:0;font-weight:500;font-variant-numeric:tabular-nums}
+.drv{display:grid;gap:14px}
+.drv .d{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:baseline}
+.drv .d .n{font-weight:600;font-size:13px}
+.drv .d .v{font-variant-numeric:tabular-nums;font-weight:600;font-size:13px;text-align:right}
+.drv .d .flag{font-size:12px;color:var(--ink-2);grid-column:1/-1}
+.drv .d .flag.on{color:var(--crit-ink);font-weight:500}
+.scale{grid-column:1/-1;position:relative;height:16px;background:var(--track);border-radius:3px}
+.scale .ok{position:absolute;top:0;bottom:0;background:var(--accent-wash);border-left:1px solid var(--accent);border-right:1px solid var(--accent)}
+.scale .me{position:absolute;top:-3px;bottom:-3px;width:4px;margin-left:-2px;background:var(--ink);border-radius:2px}
+.scale-l{grid-column:1/-1;display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+/* live scoring */
+.ctl{display:grid;gap:18px}
+.ctl .f{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:baseline}
+.ctl label{font-weight:600;font-size:13px}
+.ctl .f output{font-variant-numeric:tabular-nums;font-weight:600}
+.ctl .f input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+.ctl .f .h{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.ctl input[type=number]{font:14px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:6px 8px;width:140px}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.presets .btn{font-weight:500;font-size:12.5px;padding:5px 10px}
+.res .p{font-family:var(--f-display);font-size:54px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.gauge{position:relative;height:14px;border-radius:3px;display:flex;overflow:hidden;margin:14px 0 4px}
+.gauge i{display:block;height:100%}
+.gauge-wrap{position:relative}
+.gauge-wrap .me{position:absolute;top:8px;width:4px;height:26px;margin-left:-2px;background:var(--ink);border-radius:2px;transition:left .15s}
+.gauge-l{position:relative;height:16px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.gauge-l span{position:absolute;top:0;transform:translateX(-50%)}
+.gauge-l span:first-child{transform:none}
+.res dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 14px;margin:16px 0 0;font-size:13.5px}
+.res dt{color:var(--ink-2)}.res dd{margin:0;font-weight:600}
+pre.api{background:var(--track);border-radius:6px;padding:12px 14px;font:12.5px/1.5 var(--f-mono);color:var(--ink);overflow-x:auto;margin:0}
+.pb{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.pb .t{width:60px;height:6px;background:var(--track);border-radius:3px;overflow:hidden}
+.pb .t i{display:block;height:100%;background:var(--ink-2)}
+.inl{display:flex;align-items:center;gap:8px}
+.inl .t{flex:1;min-width:50px;height:8px;background:var(--track);border-radius:0 3px 3px 0}
+.inl .t i{display:block;height:100%;background:var(--bar);border-radius:0 3px 3px 0}
+/* model scorecard */
+.score{display:grid;grid-template-columns:max-content repeat(2,minmax(0,1fr));gap:0;font-size:13px}
+.score div{padding:7px 10px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.score .h{font-family:var(--f-display);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.score .w{font-weight:600;color:var(--good-ink)}
+.cm{display:grid;grid-template-columns:max-content repeat(2,minmax(0,1fr));gap:4px;font-size:12.5px;margin-top:6px}
+.cm div{padding:8px;text-align:center;border-radius:4px;font-variant-numeric:tabular-nums}
+.cm .h{color:var(--ink-2);font-size:11.5px;padding:4px}
+.cm .ok{background:var(--accent-wash);font-weight:600}
+.cm .bad{background:var(--track)}
+/* action center */
+.chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:900px){.chips{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.chips{grid-template-columns:1fr}}
+.chip{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:12px 14px;cursor:pointer;color:var(--ink);font:inherit;display:flex;flex-direction:column;gap:3px}
+.chip:hover{border-color:var(--ink-2)}
+.chip[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-wash)}
+.chip .k{font-family:var(--f-display);font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2)}
+.chip .a{font-weight:600}
+.chip .m{font-size:12.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px}
+.filters label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--ink-2);font-family:var(--f-display);letter-spacing:.04em;text-transform:uppercase;min-width:0}
+.filters select,.filters input{font:14px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:7px 9px;max-width:100%}
+.filters input{width:150px}
+.btn{font:600 13px var(--f-body);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:7px 12px;cursor:pointer}
+.btn:hover:not(:disabled){border-color:var(--ink-2)}
+.btn:disabled{opacity:.45;cursor:default}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+.pager .g{display:flex;gap:6px}
+.empty{padding:28px;text-align:center;color:var(--ink-2)}
+#tip{position:fixed;pointer-events:none;z-index:20;background:var(--ink);color:var(--bg);font-size:12.5px;padding:7px 10px;border-radius:5px;max-width:260px;line-height:1.4;opacity:0;transition:opacity .08s}
+#tip b{font-weight:600}
+footer{margin-top:28px;color:var(--muted);font-size:12.5px;display:grid;gap:6px;max-width:90ch}
+footer b{color:var(--ink-2)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div>
+    <div class="eyebrow">Phase 8 · Tableau dashboard prototypes</div>
+    <h1>Customer Retention Early Warning</h1>
+    <p class="sub">Colombian fintech, 48,723 customers, 2023 transactions. Churn is defined as going quiet in Oct–Dec; risk scores come from a 5-fold out-of-fold random forest.</p>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Dashboards">
+  <button role="tab" id="tab-overview" aria-controls="overview" aria-selected="true"><span class="n">24</span>Executive Retention Overview</button>
+  <button role="tab" id="tab-warning" aria-controls="warning" aria-selected="false"><span class="n">25</span>Early Warning Monitor</button>
+  <button role="tab" id="tab-actions" aria-controls="actions" aria-selected="false"><span class="n">26</span>Retention Action Center</button>
+  <button role="tab" id="tab-live" aria-controls="live" aria-selected="false"><span class="n">ML</span>Live Scoring</button>
+</nav>
+
+<!-- ============ 24 EXECUTIVE ============ -->
+<section id="overview" role="tabpanel" aria-labelledby="tab-overview">
+<div class="grid">
+  <div class="panel k4 kpi"><div class="lab">Customers</div><div class="val" id="k-n"></div><div class="ctx">Fintech customer base, 2023</div></div>
+  <div class="panel k4 kpi"><div class="lab">Churn rate</div><div class="val" id="k-rate"></div><div class="ctx" id="k-rate-c"></div></div>
+  <div class="panel k4 kpi"><div class="lab">Retention rate</div><div class="val" id="k-ret"></div><div class="ctx" id="k-ret-c"></div></div>
+  <div class="panel k4 kpi"><div class="lab">Total customer value</div><div class="val" id="k-tot"></div><div class="ctx">Lifetime value of all customers. 2023 transaction volume: $2.90B across 3.16 M transactions</div></div>
+  <div class="panel k4 kpi"><div class="lab">Value lost to churn</div><div class="val" id="k-lost"></div><div class="ctx" id="k-lost-c"></div></div>
+  <div class="panel k4 kpi"><div class="lab">Expected value at risk</div><div class="val" id="k-evar"></div><div class="ctx" id="k-evar-c"></div></div>
+
+  <div class="panel c6">
+    <h2>Behavior predicts churn</h2>
+    <p class="q">Churn rate by primary warning signal</p>
+    <div class="hb" id="c-signal"></div>
+    <div class="axis-note"><i></i>Overall churn rate 21.1% · same 0–45% scale as the chart beside it</div>
+  </div>
+  <div class="panel c6">
+    <h2>Who the customer is does not</h2>
+    <p class="q">Churn rate by customer segment and income bracket</p>
+    <div class="hb" id="c-segment"></div>
+    <div class="axis-note"><i></i>Every demographic cut (age, city, channel) sits between 18% and 25%</div>
+  </div>
+
+  <div class="panel c7">
+    <h2>Monthly active share, churned vs retained</h2>
+    <p class="q">Share of each group with at least one transaction that month</p>
+    <div class="legend"><span><i class="line" style="background:var(--s-retained)"></i>Retained</span><span><i class="line" style="background:var(--s-churned)"></i>Churned</span><span><i style="background:var(--shade);border:1px solid var(--line)"></i>Churn label window</span></div>
+    <svg class="chart" id="c-monthly" viewBox="0 0 640 260" role="img" aria-label="Monthly active share line chart"></svg>
+    <p class="note">Both groups look the same from January to September (77–81% active). The Oct–Dec drop is how churn is defined, so it is not a forecast. <b>Warning has to come from how customers transact, not whether they do.</b></p>
+  </div>
+  <div class="panel c5">
+    <h2>Highest-risk segments</h2>
+    <p class="q">Priority segments from risk tier × value tier</p>
+    <div class="tw"><table id="t-priority"><thead><tr><th>Segment</th><th class="num">Customers</th><th class="num">Churn</th><th>Share of value lost</th></tr></thead><tbody></tbody></table></div>
+    <p class="note">The two High-risk segments are 18% of customers but contain <b>36%</b> of the value actually lost. Low-risk customers still hold 49% of <i>expected</i> value at risk because a few very large accounts dominate CLV.</p>
+  </div>
+
+</div>
+</section>
+
+<!-- ============ 25 EARLY WARNING ============ -->
+<section id="warning" role="tabpanel" aria-labelledby="tab-warning" hidden>
+<div class="status" aria-label="Model status">
+  <span class="live">Scores published</span>
+  <span>Model <b>Random forest · 300 trees · 62 features</b></span>
+  <span>Out-of-fold AUC <b>0.745</b></span>
+  <span>Risk thresholds <b>0.20 / 0.30</b></span>
+  <span>Customers scored <b>48,723</b></span>
+  <span>Data through <b>Sep 2023</b></span>
+</div>
+<div class="grid">
+  <div class="panel c12">
+    <h2>Risk tiers</h2>
+    <p class="q">Out-of-fold churn probability, cut at 0.20 and 0.30. Actual churn rate shown per tier.</p>
+    <div class="tiers" id="tiers"></div>
+  </div>
+
+  <div class="panel c8">
+    <h2>Churn probability distribution</h2>
+    <p class="q">Customers per 0.05 probability bin, split by actual outcome</p>
+    <div class="legend"><span><i style="background:var(--s-retained)"></i>Retained</span><span><i style="background:var(--s-churned)"></i>Churned</span></div>
+    <svg class="chart" id="c-hist" viewBox="0 0 700 250" role="img" aria-label="Churn probability histogram"></svg>
+  </div>
+  <div class="panel c4">
+    <h2>Which signals carry the model</h2>
+    <p class="q">Permutation importance: AUC lost when the feature is shuffled</p>
+    <div class="hb" id="c-imp"></div>
+    <p class="note">Only three behaviors matter. App logins, failed payments, tickets and satisfaction add almost nothing once those are known. A 3-feature model scores AUC <b>0.775</b>.</p>
+  </div>
+
+  <div class="panel c6">
+    <h2>Declining usage: change in average transaction amount</h2>
+    <p class="q">Churn rate by Jan–Sep amount change bucket</p>
+    <div id="c-amount"></div>
+    <p class="note">U-shaped. A drop of 48% or more doubles churn risk to <b>50%</b>; a surge of 44% or more also raises it, to 29%.</p>
+  </div>
+  <div class="panel c6">
+    <h2>Shift in withdrawal share</h2>
+    <p class="q">Churn rate by change in share of transactions that are withdrawals (percentage points)</p>
+    <div id="c-withdraw"></div>
+    <p class="note">Stable or slightly rising withdrawal share is the safest pattern (7.5–12%). Large moves either way push churn to 30–37%.</p>
+  </div>
+
+  <div class="panel c5">
+    <h2>Declining engagement: days since last transaction</h2>
+    <p class="q">Churn rate by recency at the end of September</p>
+    <div id="c-recency"></div>
+  </div>
+  <div class="panel c7">
+    <h2>Signals that look flat</h2>
+    <p class="q">Payment failures, support activity, satisfaction and logins hold near the 21% baseline</p>
+    <div class="mini" id="c-flat"></div>
+  </div>
+
+  <div class="panel c12">
+    <h2>Model scorecard</h2>
+    <p class="q">Phase 6 test set (9,745 customers). Random forest beats the logistic baseline.</p>
+    <div class="grid">
+      <div class="c6" style="min-width:0">
+        <div class="score">
+          <div class="h">Metric</div><div class="h">Logistic reg.</div><div class="h">Random forest</div>
+          <div>ROC AUC</div><div>0.574</div><div class="w">0.761</div>
+          <div>Accuracy @ 0.5</div><div>0.789</div><div class="w">0.819</div>
+          <div>Churners caught @ 0.5</div><div>0</div><div class="w">some</div>
+          <div>Out-of-fold AUC (all customers)</div><div>–</div><div>0.745</div>
+        </div>
+      </div>
+      <div class="c6" style="min-width:0">
+        <div style="font-size:13px;color:var(--ink-2)">Random forest confusion matrix at the 0.30 threshold</div>
+        <div class="cm">
+          <div class="h"></div><div class="h">Predicted stay</div><div class="h">Predicted churn</div>
+          <div class="h" style="text-align:left">Actually stayed</div><div class="ok">6,833</div><div class="bad">857</div>
+          <div class="h" style="text-align:left">Actually churned</div><div class="bad">1,216</div><div class="ok">839</div>
+        </div>
+        <p class="note">At 0.30 the model flags 17% of customers. Half of those flagged churn (precision 0.50) and it catches 41% of churners (recall 0.41).</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============ 26 ACTION CENTER ============ -->
+<section id="actions" role="tabpanel" aria-labelledby="tab-actions" hidden>
+<div class="chips" id="chips"></div>
+<div class="panel why" id="why" style="margin-top:16px" aria-live="polite">
+  <div class="who">
+    <div class="eyebrow">Why this customer</div>
+    <div class="id" id="w-id"></div>
+    <dl>
+      <dt>Churn probability</dt><dd id="w-p"></dd>
+      <dt>Risk category</dt><dd id="w-r"></dd>
+      <dt>Customer value</dt><dd id="w-v"></dd>
+      <dt>Priority rank</dt><dd id="w-k"></dd>
+      <dt>Recommended action</dt><dd id="w-a"></dd>
+    </dl>
+    <div style="margin-top:12px"><button class="btn" id="w-score" type="button">Open in Live Scoring</button></div>
+  </div>
+  <div style="min-width:0">
+    <div style="font-size:13px;color:var(--ink-2);margin-bottom:10px">The three behaviors the model relies on, compared with the stable range. Primary warning signal: <b id="w-sig" style="color:var(--ink)"></b></div>
+    <div class="drv" id="w-drv"></div>
+  </div>
+</div>
+<div class="panel">
+  <div class="filters">
+    <label for="f-id">Customer ID<input id="f-id" type="search" inputmode="numeric" placeholder="e.g. 16662064"></label>
+    <label for="f-risk">Risk category<select id="f-risk"></select></label>
+    <label for="f-sig">Primary warning signal<select id="f-sig"></select></label>
+    <label for="f-sort">Sort by<select id="f-sort">
+      <option value="rank">Priority rank</option><option value="prob">Churn probability</option><option value="value">Customer value</option>
+    </select></label>
+    <button class="btn" id="f-reset" type="button">Clear filters</button>
+  </div>
+  <div class="tw">
+    <table id="t-act">
+      <thead><tr><th class="num">Rank</th><th>Customer ID</th><th class="num">Churn probability</th><th>Risk category</th><th class="num">Customer value</th><th>Primary warning signal</th><th>Recommended action</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="pager"><span id="pg-info"></span><div class="g"><button class="btn" id="pg-prev" type="button">Previous</button><button class="btn" id="pg-next" type="button">Next</button></div></div>
+  <p class="note">Select a row to see why that customer was flagged. Priority rank orders customers by expected value at risk inside each segment, segment 1 first. Customer value is lifetime value in US dollars. Playbooks for each action are in <b>intervention_strategy.md</b>.</p>
+</div>
+</section>
+
+<!-- ============ LIVE SCORING ============ -->
+<section id="live" role="tabpanel" aria-labelledby="tab-live" hidden>
+<div class="status" aria-label="Deployed model status">
+  <span class="live">Model deployed</span>
+  <span>Model <b>churn-rf-3driver v1.0</b></span>
+  <span>Random forest <b>300 trees · 3 features</b></span>
+  <span>Out-of-fold AUC <b>0.772</b></span>
+  <span>Risk thresholds <b>0.20 / 0.30</b></span>
+  <span>Trained on <b>48,723 customers</b></span>
+</div>
+<div class="grid">
+  <div class="panel c5">
+    <h2>Score a customer</h2>
+    <p class="q">Enter a customer's Jan–Sep behavior. The score updates as you move the sliders.</p>
+    <div class="presets" style="margin-bottom:16px">
+      <button class="btn" type="button" data-p="-0.6,0,5,69">Spending collapse</button>
+      <button class="btn" type="button" data-p="0,0,3,30">Stable regular</button>
+      <button class="btn" type="button" data-p="0.6,0.3,40,21">Surge, then quiet</button>
+      <button class="btn" type="button" data-p="-0.1,-0.25,20,462">Large account, withdrawals shifting</button>
+    </div>
+    <div class="ctl">
+      <div class="f"><label for="in-a">Change in average transaction amount</label><output id="o-a" for="in-a"></output>
+        <input id="in-a" type="range" min="-1" max="1.6" step="0.05"><span class="h">−100% to +160% · stable range ±15%</span></div>
+      <div class="f"><label for="in-w">Shift in withdrawal share</label><output id="o-w" for="in-w"></output>
+        <input id="in-w" type="range" min="-0.6" max="0.8" step="0.05"><span class="h">−60 to +80 points · stable range ±5 points</span></div>
+      <div class="f"><label for="in-d">Days since last transaction</label><output id="o-d" for="in-d"></output>
+        <input id="in-d" type="range" min="0" max="120" step="5"><span class="h">0 to 120 days</span></div>
+      <div class="f"><label for="in-v">Customer lifetime value (USD thousands)</label><span></span>
+        <input id="in-v" type="number" min="0" step="5"><span class="h">Median customer: $30.0K. At or above the median counts as High Value.</span></div>
+    </div>
+  </div>
+  <div class="panel c7 res">
+    <h2>Prediction</h2>
+    <p class="q">What the retention team would see for this customer</p>
+    <div class="p" id="r-p"></div>
+    <div style="color:var(--ink-2);font-size:13px">probability of churning in the next quarter</div>
+    <div class="gauge-wrap">
+      <div class="gauge"><i style="width:20%;background:var(--good)"></i><i style="width:10%;background:var(--warn)"></i><i style="width:70%;background:var(--crit)"></i></div>
+      <div class="me" id="r-me"></div>
+      <div class="gauge-l"><span style="left:0">0</span><span style="left:20%">0.20</span><span style="left:30%">0.30</span><span style="left:100%;transform:translateX(-100%)">1.00</span></div>
+    </div>
+    <dl>
+      <dt>Risk category</dt><dd id="r-r"></dd>
+      <dt>Primary warning signal</dt><dd id="r-s"></dd>
+      <dt>Priority segment</dt><dd id="r-g"></dd>
+      <dt>Recommended action</dt><dd id="r-a"></dd>
+    </dl>
+    <h2 style="margin-top:22px">What moves this score</h2>
+    <p class="q">Predicted probability as the amount change varies, other inputs held where they are</p>
+    <svg class="chart" id="r-pd" viewBox="0 0 560 170" role="img" aria-label="Sensitivity of churn probability to amount change"></svg>
+  </div>
+  <div class="panel c12">
+    <h2>API response</h2>
+    <p class="q">The JSON a scoring endpoint (<code>POST /score</code>) would return for these inputs</p>
+    <pre class="api" id="r-json"></pre>
+    <p class="note">This tab runs a 3-feature version of the model so it can work in the browser. Its predictions were exported from the trained scikit-learn forest on a grid of input values, so the numbers are the model's own. The full 62-feature model behind the Action Center scores reaches AUC 0.745 out-of-fold; the 3-driver model scores 0.772, which shows the extra 59 features were mostly noise.</p>
+  </div>
+</div>
+</section>
+
+<footer>
+  <div><b>Sources.</b> <code>customer_data.csv</code> + <code>transactions_data.csv</code> → Phase 5 early-warning features → Phase 6 models → Phase 7 risk scores (<code>phase7_risk_scores.csv</code>) → Phase 8 Tableau extracts (<code>phase8_tableau_customers.csv</code>, <code>phase8_tableau_monthly.csv</code>).</div>
+  <div><b>Currency.</b> The source data is in Colombian pesos. Money is shown in US dollars at a fixed 2023 average rate of 4,325 COP per USD; percentages are unaffected.</div>
+  <div><b>Limits.</b> The dataset has no revenue field, so customer lifetime value stands in for revenue. Expected value at risk is inflated for the largest accounts: the model predicts 12.3% churn for the top CLV decile, which actually churned at 4.9%.</div>
+</footer>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const D = /*DATA*/null;
+const $ = s => document.querySelector(s);
+const pct = (v,d=1) => (v*100).toFixed(d)+'%';
+const int = v => v.toLocaleString('en-US');
+const FX = 4325; // COP per USD, 2023 average
+const usd = v => v>=1e9 ? '$'+(v/1e9).toFixed(2)+'B' : v>=1e6 ? '$'+(v/1e6).toFixed(v>=1e8?0:1)+'M' : '$'+(v/1e3).toFixed(1)+'K';
+const usdTile = cop => { const v = cop/FX; return v>=1e9 ? '$'+(v/1e9).toFixed(2)+'<small>B</small>' : '$'+Math.round(v/1e6).toLocaleString('en-US')+'<small>M</small>'; };
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const RATE = D.kpi.rate;
+
+/* tooltip */
+const tip = $('#tip');
+function showTip(e, html){ tip.innerHTML = html; tip.style.opacity = 1; moveTip(e); }
+function moveTip(e){ const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + w > innerWidth - 8) x = e.clientX - w - 14;
+  if (y + h > innerHeight - 8) y = e.clientY - h - 14;
+  tip.style.left = Math.max(8,x)+'px'; tip.style.top = Math.max(8,y)+'px'; }
+function hideTip(){ tip.style.opacity = 0; }
+function bindTip(el, html){ el.addEventListener('pointerenter', e=>showTip(e,html)); el.addEventListener('pointermove', moveTip); el.addEventListener('pointerleave', hideTip); }
+
+/* horizontal bars: rows = [label, n, rate] */
+function hbars(el, rows, {max=0.45, ref=RATE, sub=r=>int(r[1])+' customers', fmt=v=>pct(v)}={}){
+  el.innerHTML = '';
+  rows.forEach(r=>{
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<div class="l">${esc(r[0])}<span>${esc(sub(r))}</span></div>
+      <div class="t"><div class="b" style="width:${Math.min(100,r[2]/max*100)}%"></div>${ref!=null?`<div class="ref" style="left:${ref/max*100}%"></div>`:''}</div>
+      <div class="v">${fmt(r[2])}</div>`;
+    el.appendChild(row);
+    [...row.children].forEach(c=>bindTip(c, `<b>${esc(r[0])}</b><br>${fmt(r[2])}${r[1]!=null?` · ${int(r[1])} customers`:''}`));
+  });
+}
+/* vertical columns for ordered bins */
+function vcols(el, rows, {max=0.55, ref=RATE, labels=true, showVal=true}={}){
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `<div class="vc">${ref!=null?`<div class="ref" style="bottom:${ref/max*100}%"></div>`:''}</div><div class="vc-l"></div>`;
+  const vc = wrap.querySelector('.vc'), vl = wrap.querySelector('.vc-l');
+  rows.forEach(r=>{
+    const c = document.createElement('div'); c.className = 'col';
+    c.innerHTML = `${showVal?`<div class="pv">${pct(r[2],0)}</div>`:''}<div class="bar" style="height:${r[2]/max*100}%"></div>`;
+    vc.appendChild(c);
+    bindTip(c, `<b>${esc(r[0])}</b><br>Churn ${pct(r[2])} · ${int(r[1])} customers`);
+    const l = document.createElement('div'); l.textContent = r[0]; vl.appendChild(l);
+  });
+  el.appendChild(wrap);
+}
+const svgNS = 'http://www.w3.org/2000/svg';
+function S(tag, attrs, parent){ const e = document.createElementNS(svgNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
+
+/* ===== 24 ===== */
+const K = D.kpi;
+$('#k-n').textContent = int(K.n);
+$('#k-rate').innerHTML = pct(K.rate);
+$('#k-rate-c').textContent = `${int(K.churned)} customers churned in Oct–Dec`;
+$('#k-ret').textContent = pct(1-K.rate);
+$('#k-ret-c').textContent = `${int(K.n-K.churned)} customers stayed active`;
+$('#k-tot').innerHTML = usdTile(K.total);
+$('#k-evar-c').textContent = `${pct(K.evar/K.total)} of total value · Σ churn probability × CLV`;
+$('#k-lost').innerHTML = usdTile(K.lost);
+$('#k-lost-c').textContent = `${pct(K.lost/K.total)} of total customer lifetime value`;
+$('#k-evar').innerHTML = usdTile(K.evar);
+
+hbars($('#c-signal'), D.signal);
+const segRows = [...D.segment.map(r=>[r[0][0].toUpperCase()+r[0].slice(1)+' user',r[1],r[2]]), ...D.income.map(r=>[r[0]+' income',r[1],r[2]])];
+hbars($('#c-segment'), segRows);
+
+(function monthly(){
+  const svg = $('#c-monthly'), W=640, H=260, m={l:42,r:16,t:10,b:28};
+  const R = D.monthly['False'], C = D.monthly['True'], n = R.length;
+  const x = i => m.l + i*(W-m.l-m.r)/(n-1), y0 = 0.3, y1 = 0.9;
+  const y = v => m.t + (1-(v-y0)/(y1-y0))*(H-m.t-m.b);
+  S('rect',{x:x(8.5),y:m.t,width:x(n-1)-x(8.5)+6,height:H-m.t-m.b,fill:'var(--shade)'},svg);
+  [0.3,0.5,0.7,0.9].forEach(v=>{ S('line',{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:'var(--line)','stroke-width':1},svg);
+    S('text',{x:m.l-8,y:y(v)+4,'text-anchor':'end'},svg).textContent = pct(v,0); });
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  mon.forEach((t,i)=>{ S('text',{x:x(i),y:H-8,'text-anchor':'middle'},svg).textContent = t; });
+  S('text',{x:x(10.5),y:m.t+14,'text-anchor':'middle'},svg).textContent = 'label window';
+  const path = (arr,col) => { S('path',{d:arr.map((p,i)=>(i?'L':'M')+x(i)+','+y(p[1])).join(''),fill:'none',stroke:col,'stroke-width':2,'stroke-linejoin':'round'},svg); };
+  path(R,'var(--s-retained)'); path(C,'var(--s-churned)');
+  [[R,'var(--s-retained)','Retained'],[C,'var(--s-churned)','Churned']].forEach(([a,col,lab])=>{
+    const p = a[n-1]; S('circle',{cx:x(n-1),cy:y(p[1]),r:4,fill:col,stroke:'var(--surface)','stroke-width':2},svg);
+  });
+  const cross = S('line',{y1:m.t,y2:H-m.b,stroke:'var(--ink-2)','stroke-width':1,opacity:0},svg);
+  const dots = [S('circle',{r:4.5,fill:'var(--s-retained)',stroke:'var(--surface)','stroke-width':2,opacity:0},svg),S('circle',{r:4.5,fill:'var(--s-churned)',stroke:'var(--surface)','stroke-width':2,opacity:0},svg)];
+  const hit = S('rect',{x:m.l-10,y:0,width:W-m.l-m.r+20,height:H,fill:'transparent'},svg);
+  hit.addEventListener('pointermove', e=>{
+    const b = svg.getBoundingClientRect(), sx = (e.clientX-b.left)/b.width*W;
+    const i = Math.max(0,Math.min(n-1,Math.round((sx-m.l)/((W-m.l-m.r)/(n-1)))));
+    cross.setAttribute('x1',x(i)); cross.setAttribute('x2',x(i)); cross.setAttribute('opacity',1);
+    dots[0].setAttribute('cx',x(i)); dots[0].setAttribute('cy',y(R[i][1])); dots[1].setAttribute('cx',x(i)); dots[1].setAttribute('cy',y(C[i][1]));
+    dots.forEach(d=>d.setAttribute('opacity',1));
+    showTip(e, `<b>${mon[i]} 2023</b><br>Retained: ${pct(R[i][1])} active<br>Churned: ${pct(C[i][1])} active`);
+  });
+  hit.addEventListener('pointerleave', ()=>{ cross.setAttribute('opacity',0); dots.forEach(d=>d.setAttribute('opacity',0)); hideTip(); });
+})();
+
+(function priority(){
+  const tb = $('#t-priority tbody'), lostMax = Math.max(...D.priority.map(r=>r[4]));
+  D.priority.forEach((r,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="pill r${[0,0,1,2][i]}">${esc(r[0].replace(/^\d\. /,''))}</span></td><td class="num">${int(r[1])}</td><td class="num">${pct(r[2])}</td>
+      <td><div class="inl"><div class="t"><i style="width:${r[4]/0.4*100}%"></i></div><span class="num" style="min-width:42px;text-align:right">${pct(r[4])}</span></div></td>`;
+    tb.appendChild(tr);
+    bindTip(tr, `<b>${esc(r[0])}</b><br>${int(r[1])} customers · churn ${pct(r[2])}<br>Value lost: ${pct(r[4])} of total<br>Expected value at risk: ${pct(r[3])}`);
+  });
+})();
+
+
+/* ===== 25 ===== */
+(function tiers(){
+  const el = $('#tiers'), tot = D.risk.reduce((a,r)=>a+r[1],0);
+  const lab = ['High risk','Medium risk','Low risk'], th = ['probability ≥ 0.30','0.20 – 0.30','below 0.20'];
+  D.risk.forEach((r,i)=>{
+    el.insertAdjacentHTML('beforeend', `<div class="tier r${i}"><span class="pill r${i}">${lab[i]}</span> <span style="color:var(--muted);font-size:12px">${th[i]}</span>
+      <div class="big">${int(r[1])}</div>
+      <div class="row2"><span>Share of customers <b>${pct(r[1]/tot)}</b></span><span>Actual churn <b>${pct(r[2])}</b></span></div></div>`);
+  });
+})();
+
+(function hist(){
+  const svg = $('#c-hist'), W=700, H=250, m={l:46,r:10,t:12,b:30};
+  const rows = D.hist, n = rows.length, bw = (W-m.l-m.r)/n, ymax = 10000;
+  const y = v => m.t + (1-v/ymax)*(H-m.t-m.b), x = p => m.l + p/1*(W-m.l-m.r);
+  [0,2500,5000,7500,10000].forEach(v=>{ S('line',{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:'var(--line)'},svg);
+    S('text',{x:m.l-8,y:y(v)+4,'text-anchor':'end'},svg).textContent = v? (v/1000)+'k':'0'; });
+  [0,0.2,0.3,0.4,0.6,0.8,1].forEach(p=>{ S('text',{x:x(p),y:H-10,'text-anchor':'middle'},svg).textContent = p.toFixed(1); });
+  rows.forEach((r,i)=>{
+    const [lo,ret,ch] = r, gx = m.l + i*bw + 1, w = bw-2;
+    const g = S('g',{},svg);
+    const hr = y(0)-y(ret), hc = y(0)-y(ch);
+    S('rect',{x:gx,y:y(ret),width:w,height:Math.max(0,hr),fill:'var(--s-retained)'},g);
+    if (ch>0) S('rect',{x:gx,y:y(ret+ch),width:w,height:Math.max(0,hc-2),rx:2,fill:'var(--s-churned)'},g);
+    const hit = S('rect',{x:m.l+i*bw,y:m.t,width:bw,height:H-m.t-m.b,fill:'transparent'},g);
+    bindTip(hit, `<b>Probability ${lo.toFixed(2)}–${(lo+0.05).toFixed(2)}</b><br>${int(ret+ch)} customers<br>${int(ch)} churned (${pct(ch/(ret+ch||1),0)})`);
+  });
+  [[0.2,'Medium ≥ 0.20'],[0.3,'High ≥ 0.30']].forEach(([p,t])=>{
+    S('line',{x1:x(p),x2:x(p),y1:m.t,y2:y(0),stroke:'var(--ink-2)','stroke-dasharray':'4 3','stroke-width':1.5},svg);
+    S('text',{x:x(p)+5,y:m.t+10+(p===0.3?14:0),'text-anchor':'start',style:'fill:var(--ink-2)'},svg).textContent = t;
+  });
+  S('line',{x1:m.l,x2:W-m.r,y1:y(0),y2:y(0),stroke:'var(--muted)'},svg);
+  S('text',{x:x(0.75),y:y(1500),'text-anchor':'middle'},svg).textContent = 'Above 0.80, almost every customer churned';
+})();
+
+hbars($('#c-imp'), [['Withdrawal share shift',null,0.141],['Avg amount change',null,0.084],['Days since last tx',null,0.014],['App logins',null,0.001]],
+  {max:0.16, ref:null, sub:()=>'', fmt:v=>v.toFixed(3)});
+vcols($('#c-amount'), D.amount);
+vcols($('#c-withdraw'), D.withdraw);
+vcols($('#c-recency'), D.recency, {max:0.35});
+[['Failed payments',D.failed],['Support tickets',D.tickets],['Satisfaction (1–10)',D.satisf],['App logins / mo',D.logins]].forEach(([t,rows])=>{
+  const d = document.createElement('div'); d.innerHTML = `<h4>${t}</h4>`;
+  vcols(d, rows, {max:0.35}); $('#c-flat').appendChild(d);
+});
+
+/* ===== 26 ===== */
+const ROWS = D.rows; // [id, prob, riskIdx, valueM, sigIdx, segIdx, rank] + [7] = index into D.drv
+ROWS.forEach((r,i)=>r.push(i));
+let selected = 0;
+const st = {id:'', risk:'', sig:'', seg:'', sort:'rank', page:0};
+const PER = 25;
+const fr = $('#f-risk'), fs = $('#f-sig');
+fr.innerHTML = '<option value="">All</option>' + D.risks.map((r,i)=>`<option value="${i}">${esc(r)}</option>`).join('');
+fs.innerHTML = '<option value="">All</option>' + D.sigs.map((r,i)=>`<option value="${i}">${esc(r)}</option>`).join('');
+const segCount = D.segs.map((_,i)=>ROWS.filter(r=>r[5]===i).length);
+const chips = $('#chips');
+D.segs.forEach((s,i)=>{
+  const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.setAttribute('aria-pressed','false'); b.dataset.seg = i;
+  b.innerHTML = `<span class="k">${esc(s)}</span><span class="a">${esc(D.acts[i])}</span><span class="m">${int(segCount[i])} customers · churn ${pct(D.priority[i][2])}</span>`;
+  b.addEventListener('click', ()=>{ st.seg = st.seg===String(i) ? '' : String(i); st.page = 0; render(); });
+  chips.appendChild(b);
+});
+function filtered(){
+  let r = ROWS;
+  if (st.seg!=='') r = r.filter(x=>x[5]==st.seg);
+  if (st.risk!=='') r = r.filter(x=>x[2]==st.risk);
+  if (st.sig!=='') r = r.filter(x=>x[4]==st.sig);
+  if (st.id) r = r.filter(x=>String(x[0]).includes(st.id));
+  if (st.sort==='prob') r = [...r].sort((a,b)=>b[1]-a[1]);
+  else if (st.sort==='value') r = [...r].sort((a,b)=>b[3]-a[3]);
+  return r;
+}
+const fmtM = copM => usd(copM*1e6/FX);
+function render(){
+  chips.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed', String(c.dataset.seg===st.seg)));
+  const r = filtered(), pages = Math.max(1, Math.ceil(r.length/PER));
+  st.page = Math.min(st.page, pages-1);
+  const slice = r.slice(st.page*PER, st.page*PER+PER);
+  const tb = $('#t-act tbody');
+  tb.innerHTML = slice.length ? slice.map(x=>`<tr data-i="${x[7]}" tabindex="0" aria-selected="${x[7]===selected}"><td class="num">${int(x[6])}</td><td class="id">${x[0]}</td>
+    <td class="num"><div class="pb"><div class="t"><i style="width:${x[1]*100}%"></i></div>${x[1].toFixed(3)}</div></td>
+    <td><span class="pill r${x[2]}">${esc(D.risks[x[2]])}</span></td><td class="num">${fmtM(x[3])}</td>
+    <td>${esc(D.sigs[x[4]])}</td><td>${esc(D.acts[x[5]])}</td></tr>`).join('')
+    : `<tr><td colspan="7" class="empty">No customers match these filters. Clear a filter to see more.</td></tr>`;
+  $('#pg-info').textContent = r.length ? `Showing ${int(st.page*PER+1)}–${int(Math.min(r.length,(st.page+1)*PER))} of ${int(r.length)} customers` : '0 customers';
+  $('#pg-prev').disabled = st.page===0; $('#pg-next').disabled = st.page>=pages-1;
+}
+/* why this customer */
+const SIG_SHORT = ['Sharp drop in amounts','Withdrawal share shift','Sharp surge in amounts','Inactive 14+ days','No clear signal'];
+function scaleRow(name, val, txt, lo, hi, okLo, okHi, on, flagTxt){
+  const pos = v => Math.max(0, Math.min(100, (v-lo)/(hi-lo)*100));
+  return `<div class="d"><span class="n">${name}</span><span class="v">${txt}</span>
+    <div class="scale"><div class="ok" style="left:${pos(okLo)}%;width:${pos(okHi)-pos(okLo)}%"></div><div class="me" style="left:${pos(val)}%"></div></div>
+    <div class="scale-l"><span>${lo<0? (lo*100).toFixed(0)+(name.includes('withdrawal')?' pts':'%') : lo}</span><span>${hi>2? hi+'+ days' : '+'+(hi*100).toFixed(0)+(name.includes('withdrawal')?' pts':'%')}</span></div>
+    <span class="flag${on?' on':''}">${flagTxt}</span></div>`;
+}
+function driverRows(a, w, d){
+  const sa = (a*100>0?'+':'')+(a*100).toFixed(0)+'%', sw = (w*100>0?'+':'')+(w*100).toFixed(0)+' pts';
+  return scaleRow('Change in average amount', a, sa, -1, 1.6, -0.15, 0.15,
+           a<=-0.35 || a>=0.44, a<=-0.35 ? 'Sharp drop (≤ −35%). Customers in this range churn at 26–50%.' : a>=0.44 ? 'Sharp surge (≥ +44%). Churn in this range is 29%.' : Math.abs(a)<=0.15 ? 'Stable. Churn in the stable range is 13%.' : 'Moderate change, below the warning cut-offs.')
+       + scaleRow('Shift in withdrawal share', w, sw, -0.6, 0.8, -0.05, 0.05,
+           w<=-0.15 || w>=0.25, w<=-0.15 ? 'Large fall in withdrawal share (≤ −15 pts). Churn 30–37%.' : w>=0.25 ? 'Large rise in withdrawal share (≥ +25 pts). Churn 35%.' : 'Within the normal range.')
+       + scaleRow('Days since last transaction', d, d+' days', 0, 120, 0, 7,
+           d>=14, d>=14 ? 'Inactive for 14+ days. Churn 24–25% for 8–60 days.' : 'Recently active.');
+}
+function showWhy(i){
+  selected = i;
+  const x = ROWS[i], [a,w,d] = D.drv[i];
+  $('#w-id').textContent = x[0];
+  $('#w-p').textContent = x[1].toFixed(3);
+  $('#w-r').innerHTML = `<span class="pill r${x[2]}">${esc(D.risks[x[2]])}</span>`;
+  $('#w-v').textContent = fmtM(x[3]);
+  $('#w-k').textContent = int(x[6])+' of '+int(ROWS.length);
+  $('#w-a').textContent = D.acts[x[5]];
+  $('#w-sig').textContent = D.sigs[x[4]];
+  $('#w-drv').innerHTML = driverRows(a,w,d);
+  document.querySelectorAll('#t-act tbody tr').forEach(tr=>tr.setAttribute('aria-selected', String(+tr.dataset.i===i)));
+}
+$('#t-act tbody').addEventListener('click', e=>{ const tr = e.target.closest('tr[data-i]'); if (tr) showWhy(+tr.dataset.i); });
+$('#t-act tbody').addEventListener('keydown', e=>{ if ((e.key==='Enter'||e.key===' ') && e.target.matches('tr[data-i]')) { e.preventDefault(); showWhy(+e.target.dataset.i); } });
+$('#w-score').addEventListener('click', ()=>{ const x = ROWS[selected], [a,w,d] = D.drv[selected]; setInputs(a,w,d,x[3]*1000/FX); show('live'); history.replaceState(null,'','#live'); window.scrollTo({top:0}); });
+$('#f-id').addEventListener('input', e=>{ st.id = e.target.value.replace(/\D/g,''); st.page = 0; render(); });
+fr.addEventListener('change', e=>{ st.risk = e.target.value; st.page = 0; render(); });
+fs.addEventListener('change', e=>{ st.sig = e.target.value; st.page = 0; render(); });
+$('#f-sort').addEventListener('change', e=>{ st.sort = e.target.value; st.page = 0; render(); });
+$('#f-reset').addEventListener('click', ()=>{ Object.assign(st,{id:'',risk:'',sig:'',seg:'',sort:'rank',page:0}); $('#f-id').value=''; fr.value=''; fs.value=''; $('#f-sort').value='rank'; render(); });
+$('#pg-prev').addEventListener('click', ()=>{ st.page--; render(); });
+$('#pg-next').addEventListener('click', ()=>{ st.page++; render(); });
+render();
+showWhy(0);
+
+/* ===== LIVE SCORING ===== */
+const G = D.grid;
+function predict(a,w,d){
+  const ix = (v,[lo,st,n]) => Math.max(0, Math.min(n-1, Math.round((v-lo)/st)));
+  const i = ix(a,G.a), j = ix(w,G.w), k = ix(d,G.d);
+  const p = ((i*G.w[2] + j)*G.d[2] + k)*3;
+  return +G.p.slice(p,p+3)/1000;
+}
+function signalOf(a,w,d){ return a<=-0.35?0 : (w<=-0.15||w>=0.25)?1 : a>=0.44?2 : d>=14?3 : 4; }
+const inA = $('#in-a'), inW = $('#in-w'), inD = $('#in-d'), inV = $('#in-v');
+function setInputs(a,w,d,v){
+  inA.value = Math.max(-1,Math.min(1.6,a)); inW.value = Math.max(-0.6,Math.min(0.8,w)); inD.value = Math.max(0,Math.min(120,d)); inV.value = Math.round(v*10)/10;
+  score(); }
+function score(){
+  const a = +inA.value, w = +inW.value, d = +inD.value, v = Math.max(0, +inV.value||0);
+  $('#o-a').textContent = (a>0?'+':'')+Math.round(a*100)+'%';
+  $('#o-w').textContent = (w>0?'+':'')+Math.round(w*100)+' pts';
+  $('#o-d').textContent = d+' days';
+  const p = predict(a,w,d), r = p>=0.3?0 : p>=0.2?1 : 2, s = signalOf(a,w,d);
+  const hiVal = v*1000*FX >= D.median_value, seg = r===0 ? (hiVal?0:1) : r===1 ? 2 : 3;
+  $('#r-p').textContent = p.toFixed(3);
+  $('#r-me').style.left = (p*100)+'%';
+  $('#r-r').innerHTML = `<span class="pill r${r}">${esc(D.risks[r])}</span>`;
+  $('#r-s').textContent = D.sigs[s];
+  $('#r-g').textContent = D.segs[seg] + (r===0 ? (hiVal?' (value ≥ median)':' (value < median)') : '');
+  $('#r-a').textContent = D.acts[seg];
+  $('#r-json').textContent = JSON.stringify({
+    model: 'churn-rf-3driver', version: '1.0',
+    input: {avg_amount_change_pct: a, withdrawal_share_shift: w, days_since_last_tnx: d, customer_value_usd: Math.round(v*1000)},
+    churn_probability: p, risk_category: D.risks[r], primary_warning_signal: D.sigs[s],
+    priority_segment: D.segs[seg], recommended_action: D.acts[seg],
+    expected_value_at_risk_usd: Math.round(p*v*1000)
+  }, null, 2);
+  sensitivity(w,d,a);
+}
+function sensitivity(w,d,cur){
+  const svg = $('#r-pd'); svg.innerHTML = '';
+  const W=560, H=170, m={l:40,r:12,t:10,b:26}, lo=-1, hi=1.6;
+  const x = v => m.l + (v-lo)/(hi-lo)*(W-m.l-m.r), ymax = 0.6;
+  const y = v => m.t + (1-Math.min(v,ymax)/ymax)*(H-m.t-m.b);
+  S('rect',{x:x(-0.15),y:m.t,width:x(0.15)-x(-0.15),height:H-m.t-m.b,fill:'var(--shade)'},svg);
+  [0,0.2,0.3,0.6].forEach(v=>{ S('line',{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),stroke:v===0.2||v===0.3?'var(--ink-2)':'var(--line)','stroke-dasharray':v===0.2||v===0.3?'4 3':'0'},svg);
+    S('text',{x:m.l-6,y:y(v)+4,'text-anchor':'end'},svg).textContent = v.toFixed(1); });
+  [-1,-0.5,0,0.5,1,1.5].forEach(v=>{ S('text',{x:x(v),y:H-8,'text-anchor':'middle'},svg).textContent = (v>0?'+':'')+Math.round(v*100)+'%'; });
+  S('text',{x:x(0),y:m.t+12,'text-anchor':'middle'},svg).textContent = 'stable';
+  const pts = []; for (let i=0;i<G.a[2];i++){ const a = G.a[0]+i*G.a[1]; pts.push([a, predict(a,w,d)]); }
+  S('path',{d:pts.map((p,i)=>(i?'L':'M')+x(p[0]).toFixed(1)+','+y(p[1]).toFixed(1)).join(''),fill:'none',stroke:'var(--s-retained)','stroke-width':2,'stroke-linejoin':'round'},svg);
+  const pc = predict(cur,w,d);
+  S('circle',{cx:x(cur),cy:y(pc),r:5,fill:'var(--s-retained)',stroke:'var(--surface)','stroke-width':2},svg);
+  const hit = S('rect',{x:m.l,y:0,width:W-m.l-m.r,height:H,fill:'transparent'},svg);
+  hit.addEventListener('pointermove', e=>{ const b = svg.getBoundingClientRect(), sx = (e.clientX-b.left)/b.width*W;
+    const a = Math.round((lo + (sx-m.l)/(W-m.l-m.r)*(hi-lo))/0.05)*0.05;
+    showTip(e, `<b>Amount change ${(a>0?'+':'')+Math.round(a*100)}%</b><br>Churn probability ${predict(a,w,d).toFixed(3)}`); });
+  hit.addEventListener('pointerleave', hideTip);
+}
+[inA,inW,inD,inV].forEach(el=>el.addEventListener('input', score));
+document.querySelectorAll('.presets .btn').forEach(b=>b.addEventListener('click', ()=>{ const [a,w,d,v] = b.dataset.p.split(',').map(Number); setInputs(a,w,d,v); }));
+setInputs(-0.6,0,5,69);
+
+/* tabs */
+const tabs = [...document.querySelectorAll('nav.tabs button')];
+function show(id){
+  tabs.forEach(t=>{ const on = t.getAttribute('aria-controls')===id; t.setAttribute('aria-selected', on); document.getElementById(t.getAttribute('aria-controls')).hidden = !on; });
+  try{ localStorage.setItem('crew-tab', id); }catch(e){}
+}
+tabs.forEach(t=>t.addEventListener('click', ()=>{ show(t.getAttribute('aria-controls')); history.replaceState(null,'','#'+t.getAttribute('aria-controls')); }));
+let start = location.hash.slice(1);
+if (!['overview','warning','actions','live'].includes(start)) { try{ start = localStorage.getItem('crew-tab') || 'overview'; }catch(e){ start = 'overview'; } }
+show(['overview','warning','actions','live'].includes(start) ? start : 'overview');
+</script>
